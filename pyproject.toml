@@ -1,0 +1,87 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rfgen"
+version = "0.1.1"
+description = "Periodic Gaussian random field generation using spectral filtering techniques"
+readme = "README.md"
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+authors = [
+    {name = "Vladislav Yastrebov", email = "vladislav.yastrebov@minesparis.psl.eu"}
+]
+maintainers = [
+    {name = "Vladislav Yastrebov", email = "vladislav.yastrebov@minesparis.psl.eu"}
+]
+keywords = [
+    "random field",
+    "Gaussian random field",
+    "self-affine",
+    "Matérn covariance",
+    "spectral methods",
+    "Fourier filtering",
+    "rough surfaces",
+    "stochastic fields"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.20.0",
+    "scipy>=1.7.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.1.0",
+]
+plot = [
+    "matplotlib>=3.5.0",
+]
+all = [
+    "rfgen[dev,plot]",
+]
+
+[project.urls]
+Homepage = "https://github.com/vyastreb/rfgen"
+Repository = "https://github.com/vyastreb/rfgen"
+Documentation = "https://github.com/vyastreb/rfgen#readme"
+Issues = "https://github.com/vyastreb/rfgen/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+rfgen = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "D", "UP"]
+ignore = ["D100", "D104", "D105"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
