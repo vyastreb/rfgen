@@ -111,6 +111,7 @@ cython_debug/
 Thumbs.db
 
 # Project specific
+TODO.md
 *.png
 *.pdf
 #*.jpg
