@@ -8,6 +8,8 @@
 
 Generate **periodic** 1D/2D/3D Gaussian random fields with prescribed power spectra using Fourier-space filtering. Includes tools for spectral analysis, autocorrelation, and statistical moments.
 
+![1D/2D/3D Correlated Random Surface Generation](https://github.com/vyastreb/rfgen/examples/random_fields.jpg)
+
 ---
 
 ## Features

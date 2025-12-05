@@ -37,13 +37,19 @@ from rfgen import (
 def main():
     # Parameters
     N = 1024
-    k_low = 4 / N
-    k_high = 256 / N
+    # Wavenumber bounds in normalized units (0 to 0.5 = Nyquist)
+    k_low_norm = 4 / N      # Normalized k_low
+    k_high_norm = 256 / N   # Normalized k_high
     Hurst = 0.7
     seed = 42
 
     rng = np.random.default_rng(seed)
-    spacing = 1.0 / N  # Physical spacing
+    spacing = 1.0 / N  # Physical spacing (domain size = 1)
+
+    # Convert to physical wavenumbers for PSD analysis
+    # Physical k = normalized_k * N (when spacing = 1/N)
+    k_low_phys = k_low_norm * N   # = 4
+    k_high_phys = k_high_norm * N  # = 256
 
     print("=" * 60)
     print("Random Field Analysis Example")
@@ -51,12 +57,13 @@ def main():
     print(f"\nParameters:")
     print(f"  Grid size: {N}x{N}")
     print(f"  Hurst exponent (input): {Hurst}")
-    print(f"  k_low = {k_low:.4f}, k_high = {k_high:.4f}")
+    print(f"  k_low = {k_low_norm:.4f} (normalized), {k_low_phys:.0f} (physical)")
+    print(f"  k_high = {k_high_norm:.4f} (normalized), {k_high_phys:.0f} (physical)")
 
-    # Generate field
+    # Generate field (uses normalized k values)
     print("\nGenerating random field...")
     field = selfaffine_field(
-        dim=2, N=N, Hurst=Hurst, k_low=k_low, k_high=k_high, rng=rng
+        dim=2, N=N, Hurst=Hurst, k_low=k_low_norm, k_high=k_high_norm, rng=rng
     )
     field -= np.mean(field)
     field /= np.std(field)
@@ -84,16 +91,16 @@ def main():
     # 1D PSD
     k_1d, psd_1d_vals = psd_1d(profile, spacing=spacing)
 
-    # Radially averaged 2D PSD
+    # Radially averaged 2D PSD (returns physical k values)
     k_radial, psd_radial = psd_radial_average(field, spacing=spacing)
 
-    # Fit power law to estimate Hurst exponent
-    H_est, r_sq = estimate_hurst_exponent(field, k_low=k_low, k_high=k_high, spacing=spacing)
+    # Fit power law to estimate Hurst exponent (use physical k values)
+    H_est, r_sq = estimate_hurst_exponent(field, k_low=k_low_phys, k_high=k_high_phys, spacing=spacing)
     print(f"  Estimated Hurst exponent: {H_est:.3f}")
     print(f"  R² of power-law fit: {r_sq:.4f}")
 
-    # Fit PSD directly
-    A, beta, r_sq2 = fit_power_law(k_radial, psd_radial, k_min=k_low, k_max=k_high)
+    # Fit PSD directly (use physical k values)
+    A, beta, r_sq2 = fit_power_law(k_radial, psd_radial, k_min=k_low_phys, k_max=k_high_phys)
     print(f"  PSD power-law exponent β: {beta:.3f}")
     print(f"  (Expected: β = dim + 2H = {2 + 2*Hurst:.3f})")
 
@@ -165,19 +172,27 @@ def main():
 
     # 5. Radial PSD (log-log)
     ax5 = fig.add_subplot(2, 3, 5)
-    valid = psd_radial > 0
-    ax5.loglog(k_radial[valid], psd_radial[valid], "b.", ms=3, alpha=0.5, label="Data")
+    # Filter to fitting range for plotting
+    fit_mask = (k_radial >= k_low_phys) & (k_radial <= k_high_phys) & (psd_radial > 0)
+    psd_in_range = psd_radial[fit_mask]
+    # Set y-limits based on actual PSD values in the fitting range
+    ymin = 0.5 * psd_in_range.min()
+    ymax = 2.0 * psd_in_range.max()
+    ax5.set_ylim(ymin, ymax)
+    ax5.loglog(k_radial[fit_mask], psd_radial[fit_mask], "b.", ms=3, alpha=0.5, label="Data")
     # Plot fit
-    k_fit = np.logspace(np.log10(k_low), np.log10(k_high), 100)
+    k_fit = np.logspace(np.log10(k_low_phys), np.log10(k_high_phys), 100)
     psd_fit = A * k_fit ** (-beta)
-    ax5.loglog(k_fit, psd_fit, "r-", lw=2, label=f"Fit: k^{{-{beta:.2f}}}")
-    ax5.axvline(k_low, color="g", ls=":", label=f"k_low = {k_low:.3f}")
-    ax5.axvline(k_high, color="g", ls=":")
+    ax5.loglog(k_fit, psd_fit, "r-", lw=2, label=f"Fit: k^{{-{beta:.2f}}}",alpha=0.5)
+    ax5.axvline(k_low_phys, color="g", ls=":", label=f"k_low = {k_low_phys:.0f}")
+    ax5.axvline(k_high_phys, color="g", ls=":")
     ax5.set_xlabel("k")
     ax5.set_ylabel("PSD(k)")
     ax5.set_title("Radially Averaged PSD")
     ax5.legend(fontsize=8)
     ax5.grid(True, alpha=0.3, which="both")
+    # Set x-axis limits to fitting range with some margin
+    ax5.set_xlim(k_low_phys * 0.8, k_high_phys * 1.2)
 
     # 6. Summary statistics
     ax6 = fig.add_subplot(2, 3, 6)
