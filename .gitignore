@@ -112,6 +112,7 @@ Thumbs.db
 
 # Project specific
 TODO.md
+play_around/
 *.png
 *.pdf
 #*.jpg
