@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rfgen"
-version = "0.1.1"
+version = "0.1.3"
 description = "Periodic Gaussian random field generation using spectral filtering techniques"
 readme = "README.md"
 license = "BSD-3-Clause"
