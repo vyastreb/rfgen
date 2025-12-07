@@ -93,7 +93,11 @@ def selfaffine_field(
     # Field with ideal (exact) spectrum
     >>> field_ideal = selfaffine_field(dim=2, N=128, Hurst=0.8, noise=False, rng=rng)
     """
-    # Validate parameters
+    # Validate (and adjust) parameters
+    if k_low is None or k_low == 0:
+        k_low = 1 / (2 * N)
+    if k_high is None or k_high == 0:
+        k_high = 0.5
     if not (0 < k_low <= k_high <= 0.5):
         raise ValueError("Require 0 < k_low <= k_high <= 0.5 (Nyquist)")
     if not 0 <= Hurst <= 1:
