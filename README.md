@@ -249,6 +249,9 @@ $$S(k) = \frac{\sigma^2 \cdot 2^\mathrm{dim} \cdot \pi^{\mathrm{dim}/2} \cdot \G
 
 - **Ideal spectrum** (`noise=False`): Fourier coefficients are constructed with exact magnitudes $\sqrt{\Phi(k)}$ and random phases. Hermitian symmetry ensures real-valued output, see, e.g. [4].
 
+- **Arbitrary PSD and PDF** (IAAFT): An iterative algorithm (Iterative Amplitude Adjusted Fourier Transform) [5] alternates between projecting the field onto the target spectral amplitude (in Fourier space) and the target amplitude distribution (in real space). This approach has been adapted for surface generation in contact mechanics to produce surfaces with specific height distributions and power spectra [6].
+
+
 ---
 
 ## References
@@ -261,13 +264,17 @@ $$S(k) = \frac{\sigma^2 \cdot 2^\mathrm{dim} \cdot \pi^{\mathrm{dim}/2} \cdot \G
 
 [4] **Müser, M.H., Dapp, W.B., Bugnicourt, R., Sainsot, P., Lesaffre, N., Lubrecht, T.A., Persson, B.N., Harris, K., Bennett, A., Schulze, K., Rohde, S. et al.** (2017). Meeting the contact-mechanics challenge. Tribology Letters, 65(4), p.118. DOI: [10.1007/s11249-017-0900-2](https://doi.org/10.1007/s11249-017-0900-2)
 
+[5] **Schreiber, T. and Schmitz, A.** (1996). Improved surrogate data for nonlinearity tests. *Physical review letters*, **77**(4), p.635. DOI: [10.1103/PhysRevLett.77.635](https://doi.org/10.1103/PhysRevLett.77.635)
+
+[6] **Pérez-Ràfols, F. and Almqvist, A.** (2019). Generating randomly rough surfaces with given height probability distribution and power spectrum. *Tribology International*, **131**, 591–604. DOI: [10.1016/j.triboint.2018.11.020](https://doi.org/10.1016/j.triboint.2018.11.020)
+
 ---
 
 ## Project Information
 
 - **Author:** Vladislav A. Yastrebov
 - **Affiliation:** CNRS, Mines Paris - PSL, Centre des Matériaux
-- **AI usage:** Claude Opus 4.5 in Cursor helped considerably in folder organization, testing and deployment, the core code, readme and tests were verified by the author.
+- **AI usage:** Claude Opus 4.5 in Cursor helped considerably in folder organization, testing and deployment, the core code, readme and tests were verified by the author. Usage of ChatGPT 5.1 and of Gemini 3 Pro is also acknowledged.
 - **License:** BSD 3-Clause
 - **Repository:** [github.com/vyastreb/rfgen](https://github.com/vyastreb/rfgen)
 - **Heritage:** This package evolved from [SelfAffineSurfaceGenerator](https://github.com/vyastreb/SelfAffineSurfaceGenerator), extending the Python implementation with additional analysis tools and broader functionality.
