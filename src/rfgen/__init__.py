@@ -4,11 +4,12 @@ rfgen - Periodic Gaussian Random Field Generation and Analysis.
 A Python package for generating and analyzing periodic Gaussian random fields
 using spectral (Fourier) methods.
 
-Features
---------
-- Self-affine (power-law) spectrum generation
-- Matérn covariance spectrum generation
-- Both filtered white noise and ideal spectrum methods
+    Features
+    --------
+    - Self-affine (power-law) spectrum generation
+    - Matérn covariance spectrum generation
+    - Arbitrary PSD and PDF control (IAAFT)
+    - Both filtered white noise and ideal spectrum methods
 - Fast autocorrelation and PSD computation
 - Spectral moment analysis
 
@@ -34,7 +35,7 @@ License
 BSD-3-Clause
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.5"
 __author__ = "Vladislav Yastrebov"
 
 # Main generators
@@ -42,6 +43,7 @@ from .generators import (
     selfaffine_field,
     matern_field,
     matern_spectrum,
+    arbitrary_pdf_psd_field,
 )
 
 # Analysis tools
@@ -75,6 +77,7 @@ __all__ = [
     "selfaffine_field",
     "matern_field",
     "matern_spectrum",
+    "arbitrary_pdf_psd_field",
     # Autocorrelation
     "autocorrelation_1d",
     "autocorrelation_2d",

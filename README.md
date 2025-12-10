@@ -16,6 +16,7 @@ Generate **periodic** 1D/2D/3D Gaussian random fields with prescribed power spec
 
 - **Self-affine (power-law) spectrum** — controlled by Hurst exponent $H \in [0, 1]$
 - **Matérn covariance spectrum** — controlled by smoothness parameter $\nu > 0$
+- **Arbitrary PSD and PDF** — Control both power spectrum and amplitude distribution (IAAFT)
 - **Two generation modes:**
   - `noise=True`: Filtered white noise (spectrum follows target *on average*)
   - `noise=False`: Ideal spectrum with random phases (spectrum matches target *exactly*)
@@ -147,6 +148,22 @@ Special cases for $\nu$:
 - $\nu = 1.5$: Once differentiable
 - $\nu = 2.5$: Twice differentiable
 - $\nu \to \infty$: Squared exponential (Gaussian)
+
+#### `arbitrary_pdf_psd_field`
+
+```python
+arbitrary_pdf_psd_field(
+    dim=2,
+    N=256,
+    psd_func=my_psd_func,  # Function Φ(k)
+    pdf_func=my_pdf_func,  # Function p(z) (optional)
+    icdf_func=None,        # Function icdf(u) (optional)
+    n_iters=50,            # Number of iterations
+    rng=None,
+    verbose=False
+) -> np.ndarray
+```
+Generates a field with a specific power spectral density (PSD) and probability density function (PDF) using an IAAFT-like algorithm.
 
 ### Analysis Tools
 
