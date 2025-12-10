@@ -1,12 +1,12 @@
 # rfgen
 
-**Periodic Gaussian Random Field Generation and Analysis**
+**Periodic Random Field Generation and Analysis**
 
 [![PyPI version](https://badge.fury.io/py/rfgen.svg)](https://pypi.org/project/rfgen/)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: BSD-3-Clause](https://img.shields.io/badge/License-BSD_3--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
-Generate **periodic** 1D/2D/3D Gaussian random fields with prescribed power spectra using Fourier-space filtering. Includes tools for spectral analysis, autocorrelation, and statistical moments.
+Generate **periodic** 1D/2D/3D Gaussian and non-Gaussian random fields with prescribed power spectra using Fourier-space filtering and prescribed Height Distribution. Includes tools for spectral analysis, autocorrelation, and statistical moments.
 
 ![1D/2D/3D Correlated Random Surface Generation](https://raw.githubusercontent.com/vyastreb/rfgen/main/examples/random_fields.jpg)
 
@@ -17,6 +17,9 @@ Generate **periodic** 1D/2D/3D Gaussian random fields with prescribed power spec
 - **Self-affine (power-law) spectrum** — controlled by Hurst exponent $H \in [0, 1]$
 - **Matérn covariance spectrum** — controlled by smoothness parameter $\nu > 0$
 - **Arbitrary PSD and PDF** — Control both power spectrum and amplitude distribution (IAAFT)
+
+![Presecribed PDF and PSD](examples/psd_pdf_control_example.jpg)
+
 - **Two generation modes:**
   - `noise=True`: Filtered white noise (spectrum follows target *on average*)
   - `noise=False`: Ideal spectrum with random phases (spectrum matches target *exactly*)

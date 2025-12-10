@@ -67,6 +67,7 @@ def main():
 
     plt.tight_layout()
     plt.show()
+    fig.savefig("psd_pdf_control_example.png", dpi=300, bbox_inches="tight", pad_inches=0)
 
 if __name__ == "__main__":
     main()
