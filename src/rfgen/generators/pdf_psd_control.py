@@ -38,10 +38,11 @@ def arbitrary_pdf_psd_field(
     n_iters: int = 50,
     z_min: float = -5.0,
     z_max: float = 5.0,
+    return_psd_scale: bool = False,
     n_z: int = 10000,
     rng: np.random.Generator | None = None,
     verbose: bool = False,
-) -> np.ndarray:
+) -> np.ndarray | tuple[np.ndarray, float]:
     """Generate a periodic random field with prescribed PSD and PDF (IAAFT).
 
     Parameters
@@ -72,6 +73,8 @@ def arbitrary_pdf_psd_field(
         Bounds of the z-interval used to tabulate the PDF/CDF if ``pdf_func`` is
         provided. Default is [-5, 5]. These should cover essentially all the
         probability mass of the desired distribution.
+    return_psd_scale: bool, optional
+        If True, return the scale factor that was applied to the PSD to match the PDF energy.
     n_z : int, optional
         Number of points in the z-grid used to tabulate the PDF/CDF if
         ``pdf_func`` is provided. Default is 10000.
@@ -86,6 +89,8 @@ def arbitrary_pdf_psd_field(
     z : ndarray
         Real-valued random field with shape (N,), (N, N), or (N, N, N),
         depending on ``dim``.
+    psd_scale : float, optional
+        If ``return_psd_scale`` is True, the scale factor that was applied to the PSD to match the PDF energy.
 
     Notes
     -----
@@ -96,6 +101,22 @@ def arbitrary_pdf_psd_field(
       the construction of the amplitude array must be modified accordingly.
     - The algorithm preserves zero mean if the k=0 amplitude of the PSD is zero.
     """
+
+def arbitrary_pdf_psd_field(
+    dim: int,
+    N: int,
+    psd_func: Callable[[np.ndarray], np.ndarray],
+    pdf_func: Callable[[np.ndarray], np.ndarray] | None = None,
+    icdf_func: Callable[[np.ndarray], np.ndarray] | None = None,
+    n_iters: int = 50,
+    z_min: float = -5.0,
+    z_max: float = 5.0,
+    return_psd_scale: bool = False,
+    n_z: int = 10000,
+    rng: np.random.Generator | None = None,
+    verbose: bool = False,
+) -> np.ndarray | tuple[np.ndarray, float]:
+
     if dim not in (1, 2, 3):
         raise ValueError(f"dim must be 1, 2, or 3, got {dim}")
     if N <= 0:
@@ -131,7 +152,7 @@ def arbitrary_pdf_psd_field(
 
     # We work with amplitude sqrt(PSD)
     target_amp = np.sqrt(psd_vals)
-    # Enforce real-valued field (no constant offset) if desired: zero out k=0
+    # Enforce real-valued field (no constant offset): zero out k=0
     target_amp[k == 0] = 0.0
 
     # -------------------------------------------------------------------------
@@ -151,7 +172,6 @@ def arbitrary_pdf_psd_field(
         # Ensure strictly increasing CDF for interpolation
         eps = 1e-12
         cdf_vals = np.clip(cdf_vals, eps, 1.0 - eps)
-        # Monotonic enforcement
         cdf_vals = np.maximum.accumulate(cdf_vals)
 
         def icdf_func(u: np.ndarray) -> np.ndarray:
@@ -164,9 +184,35 @@ def arbitrary_pdf_psd_field(
     target_sorted = np.sort(icdf_func(u))
 
     # -------------------------------------------------------------------------
-    # 3) Initialise field with target PSD (Gaussian, random phases)
+    # 2bis) Match field variance implied by PSD to variance of target PDF
     # -------------------------------------------------------------------------
-    # Start from real Gaussian white noise
+    # Estimate variance of target marginal distribution from ICDF
+    u_pdf = (np.arange(n_z, dtype=float) + 0.5) / n_z
+    z_pdf_samples = icdf_func(u_pdf)
+    var_pdf = float(np.var(z_pdf_samples))
+
+    # Estimate variance produced by current target_amp on this grid
+    w_trial = rng.standard_normal(shape)
+    W_trial = fftn(w_trial)
+    phase_trial = W_trial / (np.abs(W_trial) + 1e-30)
+    F_trial = target_amp * phase_trial
+    z_trial = np.real(ifftn(F_trial))
+    var_psd = float(np.var(z_trial))
+
+    if var_psd > 0.0:
+        psd_scale = np.sqrt(var_pdf / var_psd)
+        target_amp *= psd_scale
+    else:
+        psd_scale = 0.0
+        if verbose:
+            print("Warning: PSD has zero energy; psd_scale set to 0.")
+
+    if verbose:
+        print(f"PSD scaling factor to match PDF variance: {psd_scale:.3e}")
+
+    # -------------------------------------------------------------------------
+    # 3) Initialise field with scaled target PSD (Gaussian, random phases)
+    # -------------------------------------------------------------------------
     w = rng.standard_normal(shape)
     W = fftn(w)
     phase = W / (np.abs(W) + 1e-30)  # complex unit-modulus phases
@@ -180,7 +226,6 @@ def arbitrary_pdf_psd_field(
 
     for it in range(n_iters):
         # --- (a) Impose target amplitude distribution (PDF) ---
-        # Rank-order mapping: sort current field, assign target_sorted
         order = np.argsort(flat)
         new_flat = np.empty_like(flat)
         new_flat[order] = target_sorted
@@ -199,10 +244,14 @@ def arbitrary_pdf_psd_field(
             mean_current = float(np.mean(flat))
             print(f"IAAFT iter {it+1}/{n_iters}: mean = {mean_current:.3e}, var = {var_current:.3e}")
 
-    # Final projection onto the target PDF (ensures marginal distribution)
-    order = np.argsort(flat)
-    new_flat = np.empty_like(flat)
-    new_flat[order] = target_sorted
-    flat = new_flat
+    # # Final projection onto the target PDF (ensures marginal distribution)
+    # order = np.argsort(flat)
+    # new_flat = np.empty_like(flat)
+    # new_flat[order] = target_sorted
+    # flat = new_flat
 
-    return flat.reshape(shape)
+
+    field = flat.reshape(shape)
+    if return_psd_scale:
+        return field, psd_scale
+    return field
