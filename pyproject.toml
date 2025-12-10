@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rfgen"
-version = "0.1.5"
-description = "Periodic Gaussian random field generation using spectral filtering techniques"
+version = "0.1.6"
+description = "Periodic Gaussian and non-Gaussian random field generation using spectral filtering techniques"
 readme = "README.md"
 license = "BSD-3-Clause"
 license-files = ["LICENSE"]
@@ -18,6 +18,9 @@ maintainers = [
 keywords = [
     "random field",
     "Gaussian random field",
+    "non-Gaussian random field",
+    "PDF control",
+    "PSD control",
     "self-affine",
     "Matérn covariance",
     "spectral methods",
