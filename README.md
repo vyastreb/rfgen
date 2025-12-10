@@ -278,11 +278,7 @@ $$S(k) = \frac{\sigma^2 \cdot 2^\mathrm{dim} \cdot \pi^{\mathrm{dim}/2} \cdot \G
 - **Author:** Vladislav A. Yastrebov
 - **Affiliation:** CNRS, Mines Paris - PSL, Centre des Matériaux
 - **AI usage:** Claude Opus 4.5 in Cursor helped considerably in folder organization, testing and deployment, the core code, readme and tests were verified by the author. Usage of ChatGPT 5.1 and of Gemini 3 Pro is also acknowledged.
-- **License:** BSD 3-Clause
+- **License:** BSD 3-Clause. See [LICENSE](LICENSE) for details.
 - **Repository:** [github.com/vyastreb/rfgen](https://github.com/vyastreb/rfgen)
 - **Heritage:** This package evolved from [SelfAffineSurfaceGenerator](https://github.com/vyastreb/SelfAffineSurfaceGenerator), extending the Python implementation with additional analysis tools and broader functionality.
----
 
-## License
-
-BSD 3-Clause License. See [LICENSE](LICENSE) for details.
