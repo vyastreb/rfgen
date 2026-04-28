@@ -5,9 +5,15 @@ Spectral moments are important statistical descriptors of random surfaces
 and fields, used in tribology, contact mechanics, and surface metrology.
 
 The spectral moments m_{ij} are defined as:
-    m_{ij} = ∫∫ kx^i * ky^j * Φ(kx, ky) dkx dky
+    m_{ij} = ∫∫ ωx^i * ωy^j * Φ(ωx, ωy) dωx dωy
 
-where Φ is the power spectral density.
+where ω = 2π k are **angular** wavenumbers and Φ is the power spectral density.
+
+Using angular wavenumbers means physical derivatives are obtained directly:
+
+    var(∂z/∂x) = m_{20}      →  rms slope in x  = √m_{20}
+    var(∂²z/∂x²) = m_{40}    →  rms curvature in x = √m_{40}
+    rms |∇z| = √(2 m_2)  where m_2 = (m_{20} + m_{02}) / 2
 
 References:
     Nayak, P.R., 1971. Random process model of rough surfaces. 
@@ -34,9 +40,10 @@ def spectral_moment(
     Compute the spectral moment m_{ij} of a 2D field.
 
     The spectral moment is defined as:
-        m_{ij} = ∫∫ |kx|^i * |ky|^j * Φ(kx, ky) dkx dky
+        m_{ij} = ∫∫ |ωx|^i * |ωy|^j * Φ(ωx, ωy) dωx dωy
 
-    where Φ is the power spectral density.
+    where ω = 2π k are angular wavenumbers and Φ is the power spectral density.
+    Physical derivatives are obtained directly: var(∂z/∂x) = m_{20}, etc.
 
     Parameters
     ----------
@@ -60,8 +67,8 @@ def spectral_moment(
     >>> from randomfield.analysis import spectral_moment
     >>> from randomfield.generators import periodic_gaussian_random_field
     >>> field = periodic_gaussian_random_field(N=256, Hurst=0.8)
-    >>> m00 = spectral_moment(field, 0, 0)  # Variance
-    >>> m20 = spectral_moment(field, 2, 0)  # Related to mean square slope in x
+    >>> m00 = spectral_moment(field, 0, 0)  # Variance of heights
+    >>> m20 = spectral_moment(field, 2, 0)  # var(dz/dx)
     """
     field = np.asarray(field)
     if field.ndim != 2:
@@ -70,13 +77,13 @@ def spectral_moment(
         raise ValueError("Moment indices must be non-negative")
 
     Ny, Nx = field.shape
-    dk = 1.0 / spacing  # Frequency resolution
+    dk = 1.0 / spacing  # Cycle-frequency resolution
 
-    # Compute PSD
+    # Compute PSD (in cycle-frequency space)
     zhat = fft2(field)
     psd = np.abs(zhat) ** 2 / (Nx * Ny) ** 2
 
-    # Frequency arrays
+    # Cycle-frequency arrays
     kx = fftfreq(Nx, d=spacing)
     ky = fftfreq(Ny, d=spacing)
     kx_grid, ky_grid = np.meshgrid(kx, ky)
@@ -85,10 +92,11 @@ def spectral_moment(
     kx_power = np.abs(kx_grid) ** i if i > 0 else np.ones_like(kx_grid)
     ky_power = np.abs(ky_grid) ** j if j > 0 else np.ones_like(ky_grid)
 
-    # Integrate
+    # Integrate in cycle-frequency space, then convert to angular-frequency moments:
+    # m_{ij}^angular = (2π)^(i+j) * m_{ij}^cycle
     m_ij = np.sum(kx_power * ky_power * psd) * (dk / Nx) * (dk / Ny)
 
-    return float(m_ij)
+    return float(m_ij * (2 * np.pi) ** (i + j))
 
 
 def spectral_moment_1d(
@@ -100,7 +108,9 @@ def spectral_moment_1d(
     Compute the n-th spectral moment of a 1D signal.
 
     The spectral moment is defined as:
-        m_n = ∫ |k|^n * Φ(k) dk
+        m_n = ∫ |ω|^n * Φ(ω) dω
+
+    where ω = 2π k is the angular wavenumber.
 
     Parameters
     ----------
@@ -135,10 +145,11 @@ def spectral_moment_1d(
     # Use absolute values
     k_power = np.abs(k) ** n if n > 0 else np.ones_like(k)
 
-    # Integrate
+    # Integrate in cycle-frequency space, then convert to angular-frequency moment:
+    # m_n^angular = (2π)^n * m_n^cycle
     m_n = np.sum(k_power * psd) * dk
 
-    return float(m_n)
+    return float(m_n * (2 * np.pi) ** n)
 
 
 def compute_standard_moments(
@@ -270,20 +281,16 @@ def rms_quantities(field: np.ndarray, spacing: float = 1.0) -> dict[str, float]:
     m40 = spectral_moment(field, 4, 0, spacing)
     m04 = spectral_moment(field, 0, 4, spacing)
 
-    # Prefactor for slopes and curvatures from spectral moments
-    # Slope: ∂z/∂x has PSD = (2πkx)² * Φ(kx,ky)
-    # Curvature: ∂²z/∂x² has PSD = (2πkx)⁴ * Φ(kx,ky)
-    two_pi_sq = (2 * np.pi) ** 2
-    two_pi_4 = (2 * np.pi) ** 4
-
+    # spectral_moment returns angular-frequency moments, so physical derivatives
+    # are obtained directly: var(∂z/∂x) = m20, var(∂²z/∂x²) = m40, etc.
     quantities = {
         "rms_height": np.sqrt(m00),
-        "rms_slope_x": np.sqrt(two_pi_sq * m20),
-        "rms_slope_y": np.sqrt(two_pi_sq * m02),
-        "rms_slope": np.sqrt(two_pi_sq * 0.5 * (m20 + m02)),
-        "rms_curvature_x": np.sqrt(two_pi_4 * m40),
-        "rms_curvature_y": np.sqrt(two_pi_4 * m04),
-        "rms_curvature": np.sqrt(two_pi_4 * 0.5 * (m40 + m04)),
+        "rms_slope_x": np.sqrt(m20),
+        "rms_slope_y": np.sqrt(m02),
+        "rms_slope": np.sqrt(0.5 * (m20 + m02)),
+        "rms_curvature_x": np.sqrt(m40),
+        "rms_curvature_y": np.sqrt(m04),
+        "rms_curvature": np.sqrt(0.5 * (m40 + m04)),
     }
 
     return quantities
