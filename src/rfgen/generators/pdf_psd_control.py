@@ -73,8 +73,9 @@ def arbitrary_pdf_psd_field(
         Bounds of the z-interval used to tabulate the PDF/CDF if ``pdf_func`` is
         provided. Default is [-5, 5]. These should cover essentially all the
         probability mass of the desired distribution.
-    return_psd_scale: bool, optional
-        If True, return the scale factor that was applied to the PSD to match the PDF energy.
+    return_psd_scale : bool, optional
+        If True, return the scale factor that was applied to the PSD to match the
+        PDF energy.
     n_z : int, optional
         Number of points in the z-grid used to tabulate the PDF/CDF if
         ``pdf_func`` is provided. Default is 10000.
@@ -90,7 +91,8 @@ def arbitrary_pdf_psd_field(
         Real-valued random field with shape (N,), (N, N), or (N, N, N),
         depending on ``dim``.
     psd_scale : float, optional
-        If ``return_psd_scale`` is True, the scale factor that was applied to the PSD to match the PDF energy.
+        If ``return_psd_scale`` is True, the scale factor that was applied to
+        the PSD to match the PDF energy.
 
     Notes
     -----
@@ -100,23 +102,9 @@ def arbitrary_pdf_psd_field(
     - The target PSD is assumed isotropic, Φ = Φ(|k|). If anisotropy is needed,
       the construction of the amplitude array must be modified accordingly.
     - The algorithm preserves zero mean if the k=0 amplitude of the PSD is zero.
+    - The final step is always a PDF projection (rank-order mapping), which
+      guarantees the output marginal distribution matches the target exactly.
     """
-
-def arbitrary_pdf_psd_field(
-    dim: int,
-    N: int,
-    psd_func: Callable[[np.ndarray], np.ndarray],
-    pdf_func: Callable[[np.ndarray], np.ndarray] | None = None,
-    icdf_func: Callable[[np.ndarray], np.ndarray] | None = None,
-    n_iters: int = 50,
-    z_min: float = -5.0,
-    z_max: float = 5.0,
-    return_psd_scale: bool = False,
-    n_z: int = 10000,
-    rng: np.random.Generator | None = None,
-    verbose: bool = False,
-) -> np.ndarray | tuple[np.ndarray, float]:
-
     if dim not in (1, 2, 3):
         raise ValueError(f"dim must be 1, 2, or 3, got {dim}")
     if N <= 0:
@@ -244,12 +232,11 @@ def arbitrary_pdf_psd_field(
             mean_current = float(np.mean(flat))
             print(f"IAAFT iter {it+1}/{n_iters}: mean = {mean_current:.3e}, var = {var_current:.3e}")
 
-    # # Final projection onto the target PDF (ensures marginal distribution)
-    # order = np.argsort(flat)
-    # new_flat = np.empty_like(flat)
-    # new_flat[order] = target_sorted
-    # flat = new_flat
-
+    # Final projection onto the target PDF (ensures marginal distribution)
+    order = np.argsort(flat)
+    new_flat = np.empty_like(flat)
+    new_flat[order] = target_sorted
+    flat = new_flat
 
     field = flat.reshape(shape)
     if return_psd_scale:
