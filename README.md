@@ -93,9 +93,10 @@ field = matern_field(
 )
 ```
 
-### Ideal spectrum (no spectral noise)
+### Ideal spectrum (no noise)
 
 ```python
+from rfgen import selfaffine_field
 # Use noise=False for exact power-law spectrum
 field_ideal = selfaffine_field(
     dim=2, N=256, Hurst=0.7,
