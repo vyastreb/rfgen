@@ -19,7 +19,8 @@ License: BSD-3-Clause
 """
 
 import numpy as np
-from numpy.fft import fftfreq, fftshift, ifftshift, fftn, ifftn, ifft2
+
+from ._fft import selfaffine_filter
 
 
 def selfaffine_field(
@@ -134,44 +135,11 @@ def _selfaffine_filtered_noise(
     rng: np.random.Generator,
 ) -> np.ndarray:
     """Generate self-affine field by filtering white noise."""
-    # Frequency grid
-    k1 = fftfreq(N)
-    power = -(0.5 * dim + Hurst)
-
-    # Build k-magnitude array and generate noise
-    if dim == 1:
-        k = np.abs(k1)
-        white_noise = np.fft.fft(rng.standard_normal(N))
-    elif dim == 2:
-        k = np.sqrt(k1[:, None] ** 2 + k1[None, :] ** 2)
-        white_noise = np.fft.fft2(rng.standard_normal((N, N)))
-    else:  # dim == 3
-        k = np.sqrt(k1[:, None, None] ** 2 + k1[None, :, None] ** 2 + k1[None, None, :] ** 2)
-        white_noise = fftn(rng.standard_normal((N, N, N)))
-
-    k = fftshift(k)
-
-    # Build filter (sqrt of power spectrum)
-    mask = (k >= k_low) & (k <= k_high)
-    sqrt_power_spectrum = np.zeros_like(k)
-    sqrt_power_spectrum[mask] = (k[mask] / k_low) ** power
-
-    if plateau:
-        sqrt_power_spectrum[k < k_low] = 1.0
-
-    # Handle potential infinities
-    sqrt_power_spectrum[np.isinf(sqrt_power_spectrum)] = 0
-
-    # Apply filter
-    grf_fourier = white_noise * sqrt_power_spectrum
-
-    # Transform back to real space
-    if dim == 2:
-        z = np.real(ifft2(ifftshift(grf_fourier)))
-    else:
-        z = np.real(ifftn(ifftshift(grf_fourier)))
-
-    return z
+    shape = (N,) * dim
+    amplitude = selfaffine_filter(dim, N, Hurst, k_low, k_high, plateau)
+    spectrum = np.fft.rfftn(rng.standard_normal(shape))
+    spectrum *= amplitude
+    return np.fft.irfftn(spectrum, s=shape)
 
 
 def _selfaffine_ideal_spectrum(
@@ -184,42 +152,11 @@ def _selfaffine_ideal_spectrum(
     rng: np.random.Generator,
 ) -> np.ndarray:
     """Generate self-affine field with ideal spectrum and random phases."""
-    # Frequency grid (unshifted, consistent with numpy.fft)
-    k1 = fftfreq(N)
+    shape = (N,) * dim
+    amplitude = selfaffine_filter(dim, N, Hurst, k_low, k_high, plateau)
 
-    if dim == 1:
-        k = np.abs(k1)
-        shape = (N,)
-    elif dim == 2:
-        kx, ky = np.meshgrid(k1, k1, indexing="ij")
-        k = np.sqrt(kx**2 + ky**2)
-        shape = (N, N)
-    else:  # dim == 3
-        kx, ky, kz = np.meshgrid(k1, k1, k1, indexing="ij")
-        k = np.sqrt(kx**2 + ky**2 + kz**2)
-        shape = (N, N, N)
-
-    # Self-affine exponent for the amplitude (not the PSD)
-    power = -(0.5 * dim + Hurst)
-
-    # Prescribed Fourier magnitude A(k)
-    sqrt_power_spectrum = np.zeros_like(k, dtype=float)
-    mask = (k >= k_low) & (k <= k_high)
-    sqrt_power_spectrum[mask] = (k[mask] / k_low) ** power
-    sqrt_power_spectrum[k == 0] = 0.0
-
-    if plateau:
-        sqrt_power_spectrum[k < k_low] = 1.0
-
-    # Random phases with Hermitian symmetry (from FFT of real white noise)
-    w = rng.standard_normal(shape)
-    W = fftn(w)
-    phase = W / (np.abs(W) + 1e-30)  # unit-magnitude complex numbers
-
-    # Impose target magnitudes with random phases
-    F = sqrt_power_spectrum * phase
-
-    # Back to real space
-    z = np.real(ifftn(F))
-
-    return z
+    # ``rfftn`` retains the complex phase of every independent Fourier mode.
+    spectrum = np.fft.rfftn(rng.standard_normal(shape))
+    spectrum /= np.abs(spectrum) + 1e-30
+    spectrum *= amplitude
+    return np.fft.irfftn(spectrum, s=shape)

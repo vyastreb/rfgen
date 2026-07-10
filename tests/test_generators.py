@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from rfgen import selfaffine_field, matern_field
+from rfgen.generators._fft import selfaffine_filter
 
 
 class TestSelfAffineGenerator:
@@ -102,6 +103,14 @@ class TestSelfAffineGenerator:
         """Test that plateau works with noise=False."""
         field = selfaffine_field(dim=2, N=64, plateau=True, noise=False)
         assert field.shape == (64, 64)
+
+    def test_ideal_spectrum_matches_target_amplitudes(self):
+        """The real FFT retains the requested amplitude of each mode."""
+        n = 32
+        field = selfaffine_field(dim=2, N=n, Hurst=0.7, noise=False, rng=np.random.default_rng(4))
+        expected = selfaffine_filter(2, n, 0.7, 0.03, 0.3, False)
+
+        np.testing.assert_allclose(np.abs(np.fft.rfftn(field)), expected, rtol=1e-12, atol=1e-12)
 
 
 class TestMaternGenerator:

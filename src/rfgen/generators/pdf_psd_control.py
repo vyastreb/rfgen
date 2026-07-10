@@ -26,7 +26,8 @@ from __future__ import annotations
 from collections.abc import Callable
 
 import numpy as np
-from numpy.fft import fftfreq, fftn, ifftn
+
+from ._fft import real_fft_radial_frequency_grid
 
 
 def arbitrary_pdf_psd_field(
@@ -123,25 +124,18 @@ def arbitrary_pdf_psd_field(
     # -------------------------------------------------------------------------
     # 1) Build the Fourier-space radial wavenumber grid and target amplitudes
     # -------------------------------------------------------------------------
-    k1 = fftfreq(N)  # in [-0.5, 0.5), consistent with numpy.fft
-    if dim == 1:
-        k = np.abs(k1)
-    elif dim == 2:
-        kx, ky = np.meshgrid(k1, k1, indexing="ij")
-        k = np.sqrt(kx**2 + ky**2)
-    else:  # dim == 3
-        kx, ky, kz = np.meshgrid(k1, k1, k1, indexing="ij")
-        k = np.sqrt(kx**2 + ky**2 + kz**2)
+    k = real_fft_radial_frequency_grid(dim, N)
 
     psd_vals = np.asarray(psd_func(k), dtype=float)
     if psd_vals.shape != k.shape:
         raise ValueError("psd_func(k) must return an array with the same shape as k")
-    psd_vals = np.clip(psd_vals, a_min=0.0, a_max=None)
+    psd_vals = np.maximum(psd_vals, 0.0)
 
     # We work with amplitude sqrt(PSD)
     target_amp = np.sqrt(psd_vals)
     # Enforce real-valued field (no constant offset): zero out k=0
     target_amp[k == 0] = 0.0
+    del k, psd_vals
 
     # -------------------------------------------------------------------------
     # 2) Build target amplitude distribution (sorted values) from PDF/ICDF
@@ -170,6 +164,7 @@ def arbitrary_pdf_psd_field(
     # Fixed target sorted values according to the desired PDF
     u = (np.arange(M, dtype=float) + 0.5) / M  # mid-quantiles
     target_sorted = np.sort(icdf_func(u))
+    del u
 
     # -------------------------------------------------------------------------
     # 2bis) Match field variance implied by PSD to variance of target PDF
@@ -179,13 +174,14 @@ def arbitrary_pdf_psd_field(
     z_pdf_samples = icdf_func(u_pdf)
     var_pdf = float(np.var(z_pdf_samples))
 
-    # Estimate variance produced by current target_amp on this grid
-    w_trial = rng.standard_normal(shape)
-    W_trial = fftn(w_trial)
-    phase_trial = W_trial / (np.abs(W_trial) + 1e-30)
-    F_trial = target_amp * phase_trial
-    z_trial = np.real(ifftn(F_trial))
-    var_psd = float(np.var(z_trial))
+    # Parseval's theorem gives the variance exactly.  Interior rFFT bins have
+    # an omitted conjugate partner and therefore count twice.
+    spectral_energy = np.vdot(target_amp, target_amp).real
+    if N > 2:
+        spectral_energy += np.vdot(target_amp[..., 1:-1], target_amp[..., 1:-1]).real
+    if N % 2:
+        spectral_energy += np.vdot(target_amp[..., -1], target_amp[..., -1]).real
+    var_psd = float(spectral_energy / M**2)
 
     if var_psd > 0.0:
         psd_scale = np.sqrt(var_pdf / var_psd)
@@ -201,11 +197,11 @@ def arbitrary_pdf_psd_field(
     # -------------------------------------------------------------------------
     # 3) Initialise field with scaled target PSD (Gaussian, random phases)
     # -------------------------------------------------------------------------
-    w = rng.standard_normal(shape)
-    W = fftn(w)
-    phase = W / (np.abs(W) + 1e-30)  # complex unit-modulus phases
-    F = target_amp * phase
-    z = np.real(ifftn(F))
+    spectrum = np.fft.rfftn(rng.standard_normal(shape))
+    spectrum /= np.abs(spectrum) + 1e-30
+    spectrum *= target_amp
+    z = np.fft.irfftn(spectrum, s=shape)
+    del spectrum
 
     # -------------------------------------------------------------------------
     # 4) IAAFT iterations: alternate PDF and PSD projections
@@ -221,10 +217,12 @@ def arbitrary_pdf_psd_field(
 
         # --- (b) Impose target PSD ---
         z = flat.reshape(shape)
-        Z = fftn(z)
-        phase = Z / (np.abs(Z) + 1e-30)
-        F = target_amp * phase
-        z = np.real(ifftn(F))
+        spectrum = np.fft.rfftn(z)
+        del flat, z
+        spectrum /= np.abs(spectrum) + 1e-30
+        spectrum *= target_amp
+        z = np.fft.irfftn(spectrum, s=shape)
+        del spectrum
         flat = z.reshape(M)
 
         if verbose and ((it + 1) % 10 == 0 or it == n_iters - 1):
