@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="extras/logo.svg" width="420" alt="rfgen logo">
+</p>
+
 # rfgen
 
 **Periodic Random Field Generation and Analysis**
@@ -282,4 +286,3 @@ $$S(k) = \frac{\sigma^2 \cdot 2^\mathrm{dim} \cdot \pi^{\mathrm{dim}/2} \cdot \G
 - **License:** BSD 3-Clause. See [LICENSE](LICENSE) for details.
 - **Repository:** [github.com/vyastreb/rfgen](https://github.com/vyastreb/rfgen)
 - **Heritage:** This package evolved from [SelfAffineSurfaceGenerator](https://github.com/vyastreb/SelfAffineSurfaceGenerator), extending the Python implementation with additional analysis tools and broader functionality.
-
