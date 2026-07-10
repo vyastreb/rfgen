@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
-from rfgen import selfaffine_field, matern_field
-from rfgen.generators._fft import selfaffine_filter
+from rfgen import compute_standard_moments, matern_field, matern_spectrum, rms_quantities, selfaffine_field
+from rfgen.generators._fft import real_fft_radial_frequency_grid, selfaffine_filter
 
 
 class TestSelfAffineGenerator:
@@ -112,6 +112,59 @@ class TestSelfAffineGenerator:
 
         np.testing.assert_allclose(np.abs(np.fft.rfftn(field)), expected, rtol=1e-12, atol=1e-12)
 
+    def test_ideal_spectrum_recovers_hurst_exponent(self):
+        """The exact spectrum has the requested self-affine power-law exponent."""
+        n = 64
+        hurst = 0.7
+        field = selfaffine_field(
+            dim=2, N=n, Hurst=hurst, k_low=4 / n, k_high=20 / n, noise=False, rng=np.random.default_rng(5)
+        )
+        k = real_fft_radial_frequency_grid(2, n)
+        power = np.abs(np.fft.rfftn(field)) ** 2
+        mask = (k >= 4 / n) & (k <= 20 / n)
+        slope, _ = np.polyfit(np.log(k[mask]), np.log(power[mask]), 1)
+
+        np.testing.assert_allclose(-slope, 2 + 2 * hurst, rtol=1e-12, atol=1e-12)
+
+    def test_ideal_spectrum_has_correct_rms_moments(self):
+        """Height, slope, and curvature moments agree with spectral derivatives."""
+        n = 64
+        field = selfaffine_field(
+            dim=2, N=n, Hurst=0.5, k_low=4 / n, k_high=20 / n, noise=False, rng=np.random.default_rng(6)
+        )
+        spectrum = np.fft.fftn(field)
+        angular_frequency = 2 * np.pi * np.fft.fftfreq(n, d=1 / n)
+        derivative = np.fft.ifftn(1j * angular_frequency[:, None] * spectrum).real
+        curvature = np.fft.ifftn(-(angular_frequency[:, None] ** 2) * spectrum).real
+
+        moments = compute_standard_moments(field, spacing=1 / n)
+        rms = rms_quantities(field, spacing=1 / n)
+
+        np.testing.assert_allclose(moments["m00"], np.var(field), rtol=1e-12, atol=1e-18)
+        np.testing.assert_allclose(moments["m20"], np.mean(derivative**2), rtol=1e-12, atol=1e-15)
+        np.testing.assert_allclose(moments["m40"], np.mean(curvature**2), rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(moments["m20"], moments["m02"], rtol=1e-12, atol=1e-15)
+        np.testing.assert_allclose(rms["rms_slope_x"], np.sqrt(np.mean(derivative**2)), rtol=1e-12)
+
+    def test_filtered_noise_power_is_unbiased_in_ensemble(self):
+        """Filtered white noise has the requested modal power in expectation."""
+        n = 32
+        amplitude = selfaffine_filter(2, n, 0.0, 4 / n, 12 / n, False)
+        observed_power = np.zeros_like(amplitude)
+
+        for seed in range(48):
+            field = selfaffine_field(
+                dim=2, N=n, Hurst=0.0, k_low=4 / n, k_high=12 / n, rng=np.random.default_rng(seed)
+            )
+            observed_power += np.abs(np.fft.rfftn(field)) ** 2 / n**2
+
+        observed_power /= 48
+        mask = amplitude > 0
+        relative_rms_error = np.linalg.norm(observed_power[mask] - amplitude[mask] ** 2) / np.linalg.norm(
+            amplitude[mask] ** 2
+        )
+        assert relative_rms_error < 0.3
+
 
 class TestMaternGenerator:
     """Tests for Matérn random field generator."""
@@ -161,6 +214,40 @@ class TestMaternGenerator:
         field_ideal = matern_field(dim=2, N=64, noise=False, rng=rng2)
 
         assert not np.allclose(field_noise, field_ideal)
+
+    @pytest.mark.parametrize(("dim", "n"), [(1, 32), (2, 24), (3, 12)])
+    def test_ideal_spectrum_matches_target_amplitudes(self, dim, n):
+        """The real FFT retains every requested independent Matérn amplitude."""
+        nu = 1.5
+        correlation_length = 0.1
+        sigma = 1.7
+        k_low = 3 / n
+        k_high = 0.3
+        field = matern_field(
+            dim=dim,
+            N=n,
+            nu=nu,
+            correlation_length=correlation_length,
+            sigma=sigma,
+            k_low=k_low,
+            k_high=k_high,
+            noise=False,
+            rng=np.random.default_rng(7),
+        )
+        k = real_fft_radial_frequency_grid(dim, n)
+        expected = np.zeros_like(k)
+        mask = (k >= k_low) & (k <= k_high)
+        expected[mask] = np.sqrt(matern_spectrum(k[mask], sigma, dim, nu, correlation_length))
+
+        np.testing.assert_allclose(np.abs(np.fft.rfftn(field)), expected, rtol=1e-12, atol=1e-12)
+
+    def test_sigma_scales_the_discrete_matern_field(self):
+        """Sigma is a linear spectrum scale, even after finite-band truncation."""
+        kwargs = dict(dim=2, N=32, nu=1.5, correlation_length=0.1, k_low=3 / 32, k_high=0.3, noise=False)
+        field_sigma_1 = matern_field(sigma=1.0, rng=np.random.default_rng(8), **kwargs)
+        field_sigma_2 = matern_field(sigma=2.0, rng=np.random.default_rng(8), **kwargs)
+
+        np.testing.assert_allclose(field_sigma_2, 2.0 * field_sigma_1, rtol=1e-12, atol=1e-15)
 
     def test_invalid_nu(self):
         """Test that non-positive nu raises error."""

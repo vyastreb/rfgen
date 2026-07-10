@@ -166,12 +166,13 @@ arbitrary_pdf_psd_field(
     psd_func=my_psd_func,  # Function Φ(k)
     pdf_func=my_pdf_func,  # Function p(z) (optional)
     icdf_func=None,        # Function icdf(u) (optional)
-    n_iters=50,            # Number of iterations
+    tolerance=1e-6,        # Relative convergence tolerance
+    max_iters=1000,        # Safety cap for IAAFT iterations
     rng=None,
     verbose=False
 ) -> np.ndarray
 ```
-Generates a field with a specific power spectral density (PSD) and probability density function (PDF) using an IAAFT-like algorithm.
+Generates a field with a specific power spectral density (PSD) and probability density function (PDF) using an IAAFT-like algorithm. Iteration stops when successive PDF-projected fields differ by less than `tolerance`; a `RuntimeError` is raised if `max_iters` is reached first.
 
 ### Analysis Tools
 

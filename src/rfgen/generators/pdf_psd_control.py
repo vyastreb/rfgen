@@ -36,7 +36,8 @@ def arbitrary_pdf_psd_field(
     psd_func: Callable[[np.ndarray], np.ndarray],
     pdf_func: Callable[[np.ndarray], np.ndarray] | None = None,
     icdf_func: Callable[[np.ndarray], np.ndarray] | None = None,
-    n_iters: int = 50,
+    tolerance: float = 1e-6,
+    max_iters: int = 1000,
     z_min: float = -5.0,
     z_max: float = 5.0,
     return_psd_scale: bool = False,
@@ -67,9 +68,12 @@ def arbitrary_pdf_psd_field(
         target amplitude distribution. It must map u in [0, 1] to z-values.
         If ``icdf_func`` is None, it is built numerically from ``pdf_func`` via
         integration and interpolation.
-    n_iters : int, optional
-        Number of IAAFT iterations (alternating PSD and PDF projections).
-        Typical values: 20–100. Default is 50.
+    tolerance : float, optional
+        Relative L2 change below which successive PDF-projected fields are
+        considered converged. Default is 1e-6.
+    max_iters : int, optional
+        Maximum number of alternating PSD/PDF projections. A RuntimeError is
+        raised if convergence is not reached within this limit. Default is 1000.
     z_min, z_max : float, optional
         Bounds of the z-interval used to tabulate the PDF/CDF if ``pdf_func`` is
         provided. Default is [-5, 5]. These should cover essentially all the
@@ -97,12 +101,14 @@ def arbitrary_pdf_psd_field(
 
     Notes
     -----
-    - The PSD and PDF are matched in an approximate fixed-point sense by the
-      IAAFT iterations. In practice, a few tens of iterations are sufficient
-      for good convergence.
+    - The PSD and PDF are matched in an approximate fixed-point sense. The
+      stopping criterion measures the relative change between successive
+      PDF-projected fields; the final field therefore has the target marginal
+      distribution exactly.
     - The target PSD is assumed isotropic, Φ = Φ(|k|). If anisotropy is needed,
       the construction of the amplitude array must be modified accordingly.
-    - The algorithm preserves zero mean if the k=0 amplitude of the PSD is zero.
+    - The k=0 spectral amplitude is set to zero during PSD projection; the
+      target PDF controls the mean of the returned field.
     - The final step is always a PDF projection (rank-order mapping), which
       guarantees the output marginal distribution matches the target exactly.
     """
@@ -114,6 +120,10 @@ def arbitrary_pdf_psd_field(
         raise ValueError("psd_func must be provided")
     if icdf_func is None and pdf_func is None:
         raise ValueError("Either icdf_func or pdf_func must be provided")
+    if not np.isfinite(tolerance) or tolerance <= 0:
+        raise ValueError("tolerance must be finite and > 0")
+    if not isinstance(max_iters, (int, np.integer)) or max_iters <= 0:
+        raise ValueError("max_iters must be a positive integer")
 
     if rng is None:
         rng = np.random.default_rng()
@@ -208,12 +218,36 @@ def arbitrary_pdf_psd_field(
     # -------------------------------------------------------------------------
     flat = z.reshape(M)
 
-    for it in range(n_iters):
+    previous_pdf_flat: np.ndarray | None = None
+    scale = max(float(np.linalg.norm(target_sorted - np.mean(target_sorted))), 1e-30)
+
+    for it in range(max_iters):
         # --- (a) Impose target amplitude distribution (PDF) ---
         order = np.argsort(flat)
         new_flat = np.empty_like(flat)
         new_flat[order] = target_sorted
         flat = new_flat
+
+        if previous_pdf_flat is None:
+            relative_change = np.inf
+        else:
+            relative_change = float(np.linalg.norm(flat - previous_pdf_flat) / scale)
+
+        if verbose and ((it + 1) % 10 == 0 or relative_change <= tolerance):
+            print(
+                f"IAAFT iter {it + 1}/{max_iters}: "
+                f"relative PDF update = {relative_change:.3e}"
+            )
+
+        if relative_change <= tolerance:
+            break
+
+        if it == max_iters - 1:
+            raise RuntimeError(
+                f"IAAFT did not converge to tolerance={tolerance:g} within {max_iters} iterations"
+            )
+
+        previous_pdf_flat = flat.copy()
 
         # --- (b) Impose target PSD ---
         z = flat.reshape(shape)
@@ -224,17 +258,6 @@ def arbitrary_pdf_psd_field(
         z = np.fft.irfftn(spectrum, s=shape)
         del spectrum
         flat = z.reshape(M)
-
-        if verbose and ((it + 1) % 10 == 0 or it == n_iters - 1):
-            var_current = float(np.var(flat))
-            mean_current = float(np.mean(flat))
-            print(f"IAAFT iter {it+1}/{n_iters}: mean = {mean_current:.3e}, var = {var_current:.3e}")
-
-    # Final projection onto the target PDF (ensures marginal distribution)
-    order = np.argsort(flat)
-    new_flat = np.empty_like(flat)
-    new_flat[order] = target_sorted
-    flat = new_flat
 
     field = flat.reshape(shape)
     if return_psd_scale:

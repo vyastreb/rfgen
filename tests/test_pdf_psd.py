@@ -74,7 +74,8 @@ class TestArbitraryPDFPSDGenerator:
             z_min=-1,
             z_max=10,
             rng=rng,
-            n_iters=20,
+            tolerance=1e-5,
+            max_iters=200,
         )
 
         # Check basic stats
@@ -108,7 +109,8 @@ class TestArbitraryPDFPSDGenerator:
             psd_func=psd_func,
             icdf_func=icdf_func,
             rng=rng,
-            n_iters=10,
+            tolerance=1e-5,
+            max_iters=200,
         )
 
         assert np.min(field) >= 0.0
@@ -138,6 +140,35 @@ class TestArbitraryPDFPSDGenerator:
 
         np.testing.assert_array_equal(field1, field2)
 
+    def test_icdf_output_matches_the_target_sample_exactly(self):
+        """The final rank projection preserves the requested marginal exactly."""
+        n = 32
+        field = arbitrary_pdf_psd_field(
+            dim=2,
+            N=n,
+            psd_func=lambda k: np.ones_like(k),
+            icdf_func=lambda u: u**2,
+            tolerance=1e-6,
+            max_iters=200,
+            rng=np.random.default_rng(9),
+        )
+        target_sorted = ((np.arange(n * n, dtype=float) + 0.5) / (n * n)) ** 2
+
+        np.testing.assert_array_equal(np.sort(field.ravel()), target_sorted)
+
+    def test_raises_when_convergence_cap_is_reached(self):
+        """A finite safety cap reports non-convergence instead of returning silently."""
+        with pytest.raises(RuntimeError, match="did not converge"):
+            arbitrary_pdf_psd_field(
+                dim=2,
+                N=32,
+                psd_func=lambda k: np.ones_like(k),
+                icdf_func=lambda u: u,
+                tolerance=1e-12,
+                max_iters=1,
+                rng=np.random.default_rng(10),
+            )
+
     def test_invalid_inputs(self):
         """Test error handling."""
 
@@ -163,3 +194,8 @@ class TestArbitraryPDFPSDGenerator:
         with pytest.raises(ValueError):
             arbitrary_pdf_psd_field(dim=2, N=10, psd_func=None, pdf_func=pdf_func)
 
+        with pytest.raises(ValueError):
+            arbitrary_pdf_psd_field(dim=2, N=10, psd_func=psd_func, pdf_func=pdf_func, tolerance=0)
+
+        with pytest.raises(ValueError):
+            arbitrary_pdf_psd_field(dim=2, N=10, psd_func=psd_func, pdf_func=pdf_func, max_iters=0)
