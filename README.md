@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="extras/logo.svg" width="420" alt="rfgen logo">
+  <img src="extras/logo.svg" width="200" alt="rfgen logo">
 </p>
 
 # rfgen
