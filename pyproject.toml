@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rfgen"
-version = "0.1.8"
+version = "0.1.9"
 description = "Periodic Gaussian and non-Gaussian random field generation using spectral filtering techniques"
 readme = "README.md"
 license = "BSD-3-Clause"
@@ -87,4 +87,3 @@ ignore = ["D100", "D104", "D105"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
-
