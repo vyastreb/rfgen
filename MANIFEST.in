@@ -1,6 +1,7 @@
 # Include license and readme
 include LICENSE
 include README.md
+include extras/logo.png
 
 # Include pyproject.toml
 include pyproject.toml
@@ -21,4 +22,3 @@ global-exclude *.py[cod]
 global-exclude *.so
 global-exclude .DS_Store
 global-exclude *.egg-info
-

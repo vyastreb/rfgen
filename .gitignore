@@ -119,4 +119,4 @@ play_around/
 *.jpeg
 !docs/images/*.png
 !docs/images/*.jpg
-
+!extras/logo.png

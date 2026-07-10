@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="extras/logo.svg" width="200" alt="rfgen logo">
+  <img src="https://raw.githubusercontent.com/vyastreb/rfgen/main/extras/logo.png" width="200" alt="rfgen logo">
 </p>
 
 # rfgen
