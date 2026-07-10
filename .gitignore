@@ -12,6 +12,7 @@ build/
 develop-eggs/
 dist/
 downloads/
+examples/
 eggs/
 .eggs/
 lib/
@@ -118,5 +119,7 @@ play_around/
 #*.jpg
 *.jpeg
 !docs/images/*.png
+docs/superpowers/*
 !docs/images/*.jpg
 !extras/logo.png
+AGENTS.md
