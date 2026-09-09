@@ -35,7 +35,7 @@ License
 BSD-3-Clause
 """
 
-__version__ = "0.2.2"
+__version__ = "0.2.3"
 __author__ = "Vladislav Yastrebov"
 
 # Main generators

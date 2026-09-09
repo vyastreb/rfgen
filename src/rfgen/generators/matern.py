@@ -26,7 +26,7 @@ import math
 import numpy as np
 from scipy.special import gamma
 
-from ._fft import real_fft_radial_frequency_grid
+from ._fft import irfftn, real_dtype, real_fft_radial_frequency_grid, rfftn
 
 
 def matern_spectrum(
@@ -101,6 +101,7 @@ def matern_field(
     noise: bool = True,
     rng: np.random.Generator | None = None,
     verbose: bool = False,
+    dtype: object = np.float64,
 ) -> np.ndarray:
     """
     Generate a periodic Gaussian random field with Matérn covariance.
@@ -129,6 +130,9 @@ def matern_field(
         Random number generator for reproducibility.
     verbose : bool, optional
         If True, print generation parameters. Default is False.
+    dtype : dtype-like, optional
+        Floating-point precision of the generated field. Supported values are
+        ``numpy.float32`` and ``numpy.float64``. Default is ``numpy.float64``.
 
     Returns
     -------
@@ -166,6 +170,7 @@ def matern_field(
         raise ValueError("Correlation length must be > 0")
     if dim not in (1, 2, 3):
         raise ValueError(f"Dimension must be 1, 2, or 3, got {dim}")
+    dtype = real_dtype(dtype)
 
     if rng is None:
         rng = np.random.default_rng()
@@ -180,11 +185,12 @@ def matern_field(
         print(f"    sigma = {sigma}")
         print(f"    k_low = {k_low}")
         print(f"    k_high = {k_high}")
+        print(f"    dtype = {dtype.name}")
 
     if noise:
-        return _matern_filtered_noise(dim, N, nu, correlation_length, sigma, k_low, k_high, rng)
+        return _matern_filtered_noise(dim, N, nu, correlation_length, sigma, k_low, k_high, rng, dtype)
     else:
-        return _matern_ideal_spectrum(dim, N, nu, correlation_length, sigma, k_low, k_high, rng)
+        return _matern_ideal_spectrum(dim, N, nu, correlation_length, sigma, k_low, k_high, rng, dtype)
 
 
 def _matern_filtered_noise(
@@ -196,13 +202,14 @@ def _matern_filtered_noise(
     k_low: float,
     k_high: float,
     rng: np.random.Generator,
+    dtype: np.dtype,
 ) -> np.ndarray:
     """Generate Matérn field by filtering white noise."""
     shape = (N,) * dim
-    amplitude = _matern_filter(dim, N, nu, correlation_length, sigma, k_low, k_high)
-    spectrum = np.fft.rfftn(rng.standard_normal(shape))
+    amplitude = _matern_filter(dim, N, nu, correlation_length, sigma, k_low, k_high, dtype)
+    spectrum = rfftn(rng.standard_normal(shape, dtype=dtype.type))
     spectrum *= amplitude
-    return np.fft.irfftn(spectrum, s=shape)
+    return irfftn(spectrum, shape, dtype)
 
 
 def _matern_ideal_spectrum(
@@ -214,16 +221,17 @@ def _matern_ideal_spectrum(
     k_low: float,
     k_high: float,
     rng: np.random.Generator,
+    dtype: np.dtype,
 ) -> np.ndarray:
     """Generate Matérn field with ideal spectrum and random phases."""
     shape = (N,) * dim
-    amplitude = _matern_filter(dim, N, nu, correlation_length, sigma, k_low, k_high)
+    amplitude = _matern_filter(dim, N, nu, correlation_length, sigma, k_low, k_high, dtype)
 
     # ``rfftn`` retains the complex phase of every independent Fourier mode.
-    spectrum = np.fft.rfftn(rng.standard_normal(shape))
+    spectrum = rfftn(rng.standard_normal(shape, dtype=dtype.type))
     spectrum /= np.abs(spectrum) + 1e-30
     spectrum *= amplitude
-    return np.fft.irfftn(spectrum, s=shape)
+    return irfftn(spectrum, shape, dtype)
 
 
 def _matern_filter(
@@ -234,10 +242,13 @@ def _matern_filter(
     sigma: float,
     k_low: float,
     k_high: float,
+    dtype: object = np.float64,
 ) -> np.ndarray:
     """Build a Matérn amplitude filter on an ``rfftn`` grid."""
-    k = real_fft_radial_frequency_grid(dim, n)
+    dtype = real_dtype(dtype)
+    k = real_fft_radial_frequency_grid(dim, n, dtype=dtype)
     amplitude = np.zeros_like(k)
     mask = (k >= k_low) & (k <= k_high)
-    amplitude[mask] = np.sqrt(matern_spectrum(k[mask], sigma, dim, nu, correlation_length))
+    spectrum = np.asarray(matern_spectrum(k[mask], sigma, dim, nu, correlation_length), dtype=dtype)
+    amplitude[mask] = np.sqrt(spectrum)
     return amplitude

@@ -49,6 +49,36 @@ class TestArbitraryPDFPSDGenerator:
         field = arbitrary_pdf_psd_field(dim=3, N=N, psd_func=psd_func, pdf_func=pdf_func)
         assert field.shape == (N, N, N)
 
+    @pytest.mark.parametrize("dim", [1, 2, 3])
+    def test_float32_output(self, dim):
+        """Single precision is preserved throughout IAAFT generation."""
+        field = arbitrary_pdf_psd_field(
+            dim=dim,
+            N=8,
+            psd_func=lambda k: np.ones_like(k),
+            icdf_func=lambda u: u,
+            dtype=np.float32,
+            rng=np.random.default_rng(42),
+        )
+
+        assert field.dtype == np.float32
+        assert np.isfinite(field).all()
+        point_count = field.size
+        target = (np.arange(point_count, dtype=np.float32) + 0.5) / point_count
+        np.testing.assert_array_equal(np.sort(field.ravel()), target)
+
+    def test_default_output_is_float64(self):
+        """The default precision remains backward compatible."""
+        field = arbitrary_pdf_psd_field(
+            dim=1,
+            N=8,
+            psd_func=lambda k: np.ones_like(k),
+            icdf_func=lambda u: u,
+            rng=np.random.default_rng(42),
+        )
+
+        assert field.dtype == np.float64
+
     def test_pdf_matching(self):
         """Test that the generated field follows the target PDF roughly."""
         N = 128
@@ -199,3 +229,12 @@ class TestArbitraryPDFPSDGenerator:
 
         with pytest.raises(ValueError):
             arbitrary_pdf_psd_field(dim=2, N=10, psd_func=psd_func, pdf_func=pdf_func, max_iters=0)
+
+        with pytest.raises(ValueError, match="dtype"):
+            arbitrary_pdf_psd_field(
+                dim=2,
+                N=10,
+                psd_func=psd_func,
+                pdf_func=pdf_func,
+                dtype=np.int32,
+            )

@@ -28,6 +28,27 @@ class TestSelfAffineGenerator:
         field = selfaffine_field(dim=3, N=N)
         assert field.shape == (N, N, N)
 
+    @pytest.mark.parametrize("dim", [1, 2, 3])
+    @pytest.mark.parametrize("noise", [True, False])
+    def test_float32_output(self, dim, noise):
+        """Single-precision generation works in every dimension and mode."""
+        field = selfaffine_field(
+            dim=dim,
+            N=8,
+            noise=noise,
+            dtype=np.float32,
+            rng=np.random.default_rng(42),
+        )
+
+        assert field.dtype == np.float32
+        assert np.isfinite(field).all()
+
+    def test_default_output_is_float64(self):
+        """The default precision remains backward compatible."""
+        field = selfaffine_field(N=8, rng=np.random.default_rng(42))
+
+        assert field.dtype == np.float64
+
     def test_reproducibility_noise_true(self):
         """Test that RNG produces reproducible results with noise=True."""
         rng1 = np.random.default_rng(42)
@@ -94,6 +115,11 @@ class TestSelfAffineGenerator:
         with pytest.raises(ValueError):
             selfaffine_field(dim=4)
 
+    def test_invalid_dtype(self):
+        """Only single and double real precision are accepted."""
+        with pytest.raises(ValueError, match="dtype"):
+            selfaffine_field(dtype=np.float16)
+
     def test_plateau_option(self):
         """Test that plateau option works."""
         field = selfaffine_field(dim=2, N=64, plateau=True)
@@ -111,6 +137,21 @@ class TestSelfAffineGenerator:
         expected = selfaffine_filter(2, n, 0.7, 0.03, 0.3, False)
 
         np.testing.assert_allclose(np.abs(np.fft.rfftn(field)), expected, rtol=1e-12, atol=1e-12)
+
+    def test_float32_ideal_spectrum_matches_target_amplitudes(self):
+        """Single precision retains the requested modal amplitudes."""
+        n = 32
+        field = selfaffine_field(
+            dim=2,
+            N=n,
+            Hurst=0.7,
+            noise=False,
+            dtype=np.float32,
+            rng=np.random.default_rng(4),
+        )
+        expected = selfaffine_filter(2, n, 0.7, 0.03, 0.3, False, dtype=np.float32)
+
+        np.testing.assert_allclose(np.abs(np.fft.rfftn(field)), expected, rtol=2e-5, atol=2e-6)
 
     def test_ideal_spectrum_recovers_hurst_exponent(self):
         """The exact spectrum has the requested self-affine power-law exponent."""
@@ -174,6 +215,27 @@ class TestMaternGenerator:
         N = 64
         field = matern_field(dim=2, N=N)
         assert field.shape == (N, N)
+
+    @pytest.mark.parametrize("dim", [1, 2, 3])
+    @pytest.mark.parametrize("noise", [True, False])
+    def test_float32_output(self, dim, noise):
+        """Single-precision generation works in every dimension and mode."""
+        field = matern_field(
+            dim=dim,
+            N=8,
+            noise=noise,
+            dtype=np.float32,
+            rng=np.random.default_rng(42),
+        )
+
+        assert field.dtype == np.float32
+        assert np.isfinite(field).all()
+
+    def test_default_output_is_float64(self):
+        """The default precision remains backward compatible."""
+        field = matern_field(N=8, rng=np.random.default_rng(42))
+
+        assert field.dtype == np.float64
 
     def test_real_valued(self):
         """Test that output is real-valued."""
@@ -241,6 +303,33 @@ class TestMaternGenerator:
 
         np.testing.assert_allclose(np.abs(np.fft.rfftn(field)), expected, rtol=1e-12, atol=1e-12)
 
+    def test_float32_ideal_spectrum_matches_target_amplitudes(self):
+        """Single precision retains the requested Matérn amplitudes."""
+        n = 24
+        nu = 1.5
+        correlation_length = 0.1
+        sigma = 1.7
+        k_low = 3 / n
+        k_high = 0.3
+        field = matern_field(
+            dim=2,
+            N=n,
+            nu=nu,
+            correlation_length=correlation_length,
+            sigma=sigma,
+            k_low=k_low,
+            k_high=k_high,
+            noise=False,
+            dtype=np.float32,
+            rng=np.random.default_rng(7),
+        )
+        k = real_fft_radial_frequency_grid(2, n, dtype=np.float32)
+        expected = np.zeros_like(k)
+        mask = (k >= k_low) & (k <= k_high)
+        expected[mask] = np.sqrt(matern_spectrum(k[mask], sigma, 2, nu, correlation_length))
+
+        np.testing.assert_allclose(np.abs(np.fft.rfftn(field)), expected, rtol=2e-5, atol=2e-6)
+
     def test_sigma_scales_the_discrete_matern_field(self):
         """Sigma is a linear spectrum scale, even after finite-band truncation."""
         kwargs = dict(dim=2, N=32, nu=1.5, correlation_length=0.1, k_low=3 / 32, k_high=0.3, noise=False)
@@ -265,3 +354,8 @@ class TestMaternGenerator:
         """Test that invalid k range raises error."""
         with pytest.raises(ValueError):
             matern_field(k_low=0.3, k_high=0.1)
+
+    def test_invalid_dtype(self):
+        """Only single and double real precision are accepted."""
+        with pytest.raises(ValueError, match="dtype"):
+            matern_field(dtype=np.complex64)

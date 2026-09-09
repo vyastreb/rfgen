@@ -35,6 +35,7 @@ Generate **periodic** 1D/2D/3D Gaussian and non-Gaussian random fields with pres
   - RMS height, slope, curvature
 - **Configurable spectral band:** $k_{\text{low}}$, $k_{\text{high}}$
 - **Optional plateau** for $k < k_{\text{low}}$
+- **Selectable precision:** `dtype=np.float32` reduces field and FFT working-array memory
 
 ---
 
@@ -72,7 +73,8 @@ field = selfaffine_field(
     Hurst=0.8,
     k_low=8/N,
     k_high=128/N,
-    rng=rng
+    rng=rng,
+    dtype=np.float32
 )
 
 # Normalize to unit standard deviation
@@ -127,7 +129,8 @@ selfaffine_field(
     plateau=False,   # Flat spectrum for k < k_low
     noise=True,      # True: filtered noise, False: ideal spectrum
     rng=None,        # numpy.random.Generator for reproducibility
-    verbose=False    # Print parameters
+    verbose=False,   # Print parameters
+    dtype=np.float64 # Output and working-array precision
 ) -> np.ndarray
 ```
 
@@ -146,7 +149,8 @@ matern_field(
     k_high=0.3,               # Upper wavenumber cutoff
     noise=True,               # True: filtered noise, False: ideal spectrum
     rng=None,                 # numpy.random.Generator
-    verbose=False             # Print parameters
+    verbose=False,            # Print parameters
+    dtype=np.float64          # Output and working-array precision
 ) -> np.ndarray
 ```
 Power spectral density: $\Phi(k) \propto (a + k^2)^{-(\nu+\mathrm{dim}/2)}$
@@ -169,10 +173,15 @@ arbitrary_pdf_psd_field(
     tolerance=1e-6,        # Relative convergence tolerance
     max_iters=1000,        # Safety cap for IAAFT iterations
     rng=None,
-    verbose=False
+    verbose=False,
+    dtype=np.float64       # Output and working-array precision
 ) -> np.ndarray
 ```
 Generates a field with a specific power spectral density (PSD) and probability density function (PDF) using an IAAFT-like algorithm. Iteration stops when successive PDF-projected fields differ by less than `tolerance`; a `RuntimeError` is raised if `max_iters` is reached first.
+
+All generators accept `dtype=np.float32` or `dtype=np.float64`. The default is
+`np.float64` for backward compatibility. Single precision uses a precision-preserving
+real FFT and keeps the main spectral and real-space work arrays in 32-bit storage.
 
 ### Analysis Tools
 

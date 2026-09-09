@@ -27,7 +27,7 @@ from collections.abc import Callable
 
 import numpy as np
 
-from ._fft import real_fft_radial_frequency_grid
+from ._fft import irfftn, real_dtype, real_fft_radial_frequency_grid, rfftn
 
 
 def arbitrary_pdf_psd_field(
@@ -44,6 +44,7 @@ def arbitrary_pdf_psd_field(
     n_z: int = 10000,
     rng: np.random.Generator | None = None,
     verbose: bool = False,
+    dtype: object = np.float64,
 ) -> np.ndarray | tuple[np.ndarray, float]:
     """Generate a periodic random field with prescribed PSD and PDF (IAAFT).
 
@@ -89,6 +90,10 @@ def arbitrary_pdf_psd_field(
         default RNG.
     verbose : bool, optional
         If True, print basic diagnostic information (iteration count, etc.).
+    dtype : dtype-like, optional
+        Floating-point precision used for the field and IAAFT work arrays.
+        Supported values are ``numpy.float32`` and ``numpy.float64``. Default
+        is ``numpy.float64``.
 
     Returns
     -------
@@ -124,6 +129,7 @@ def arbitrary_pdf_psd_field(
         raise ValueError("tolerance must be finite and > 0")
     if not isinstance(max_iters, (int, np.integer)) or max_iters <= 0:
         raise ValueError("max_iters must be a positive integer")
+    dtype = real_dtype(dtype)
 
     if rng is None:
         rng = np.random.default_rng()
@@ -134,9 +140,9 @@ def arbitrary_pdf_psd_field(
     # -------------------------------------------------------------------------
     # 1) Build the Fourier-space radial wavenumber grid and target amplitudes
     # -------------------------------------------------------------------------
-    k = real_fft_radial_frequency_grid(dim, N)
+    k = real_fft_radial_frequency_grid(dim, N, dtype=dtype)
 
-    psd_vals = np.asarray(psd_func(k), dtype=float)
+    psd_vals = np.asarray(psd_func(k), dtype=dtype)
     if psd_vals.shape != k.shape:
         raise ValueError("psd_func(k) must return an array with the same shape as k")
     psd_vals = np.maximum(psd_vals, 0.0)
@@ -152,8 +158,8 @@ def arbitrary_pdf_psd_field(
     # -------------------------------------------------------------------------
     if icdf_func is None:
         # Build ICDF numerically from the PDF via simple Riemann integration
-        z_grid = np.linspace(z_min, z_max, n_z)
-        pdf_vals = np.maximum(pdf_func(z_grid), 0.0)
+        z_grid = np.linspace(z_min, z_max, n_z, dtype=dtype)
+        pdf_vals = np.maximum(np.asarray(pdf_func(z_grid), dtype=dtype), 0.0)
         dz = z_grid[1] - z_grid[0]
         cdf_vals = np.cumsum(pdf_vals) * dz
         total = cdf_vals[-1]
@@ -162,26 +168,26 @@ def arbitrary_pdf_psd_field(
         cdf_vals /= total
 
         # Ensure strictly increasing CDF for interpolation
-        eps = 1e-12
+        eps = max(1e-12, np.finfo(dtype).eps)
         cdf_vals = np.clip(cdf_vals, eps, 1.0 - eps)
         cdf_vals = np.maximum.accumulate(cdf_vals)
 
         def icdf_func(u: np.ndarray) -> np.ndarray:
-            u = np.asarray(u, dtype=float)
+            u = np.asarray(u, dtype=dtype)
             u = np.clip(u, eps, 1.0 - eps)
-            return np.interp(u, cdf_vals, z_grid)
+            return np.asarray(np.interp(u, cdf_vals, z_grid), dtype=dtype)
 
     # Fixed target sorted values according to the desired PDF
-    u = (np.arange(M, dtype=float) + 0.5) / M  # mid-quantiles
-    target_sorted = np.sort(icdf_func(u))
+    u = (np.arange(M, dtype=dtype) + 0.5) / M  # mid-quantiles
+    target_sorted = np.sort(np.asarray(icdf_func(u), dtype=dtype))
     del u
 
     # -------------------------------------------------------------------------
     # 2bis) Match field variance implied by PSD to variance of target PDF
     # -------------------------------------------------------------------------
     # Estimate variance of target marginal distribution from ICDF
-    u_pdf = (np.arange(n_z, dtype=float) + 0.5) / n_z
-    z_pdf_samples = icdf_func(u_pdf)
+    u_pdf = (np.arange(n_z, dtype=dtype) + 0.5) / n_z
+    z_pdf_samples = np.asarray(icdf_func(u_pdf), dtype=dtype)
     var_pdf = float(np.var(z_pdf_samples))
 
     # Parseval's theorem gives the variance exactly.  Interior rFFT bins have
@@ -194,7 +200,7 @@ def arbitrary_pdf_psd_field(
     var_psd = float(spectral_energy / M**2)
 
     if var_psd > 0.0:
-        psd_scale = np.sqrt(var_pdf / var_psd)
+        psd_scale = float(np.sqrt(var_pdf / var_psd))
         target_amp *= psd_scale
     else:
         psd_scale = 0.0
@@ -207,10 +213,10 @@ def arbitrary_pdf_psd_field(
     # -------------------------------------------------------------------------
     # 3) Initialise field with scaled target PSD (Gaussian, random phases)
     # -------------------------------------------------------------------------
-    spectrum = np.fft.rfftn(rng.standard_normal(shape))
+    spectrum = rfftn(rng.standard_normal(shape, dtype=dtype.type))
     spectrum /= np.abs(spectrum) + 1e-30
     spectrum *= target_amp
-    z = np.fft.irfftn(spectrum, s=shape)
+    z = irfftn(spectrum, shape, dtype)
     del spectrum
 
     # -------------------------------------------------------------------------
@@ -251,11 +257,11 @@ def arbitrary_pdf_psd_field(
 
         # --- (b) Impose target PSD ---
         z = flat.reshape(shape)
-        spectrum = np.fft.rfftn(z)
+        spectrum = rfftn(z)
         del flat, z
         spectrum /= np.abs(spectrum) + 1e-30
         spectrum *= target_amp
-        z = np.fft.irfftn(spectrum, s=shape)
+        z = irfftn(spectrum, shape, dtype)
         del spectrum
         flat = z.reshape(M)
 

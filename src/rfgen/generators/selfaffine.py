@@ -20,7 +20,7 @@ License: BSD-3-Clause
 
 import numpy as np
 
-from ._fft import selfaffine_filter
+from ._fft import irfftn, real_dtype, rfftn, selfaffine_filter
 
 
 def selfaffine_field(
@@ -33,6 +33,7 @@ def selfaffine_field(
     noise: bool = True,
     rng: np.random.Generator | None = None,
     verbose: bool = False,
+    dtype: object = np.float64,
 ) -> np.ndarray:
     """
     Generate a periodic Gaussian random field with a self-affine spectrum.
@@ -62,6 +63,9 @@ def selfaffine_field(
         default RNG. Default is None.
     verbose : bool, optional
         If True, print generation parameters. Default is False.
+    dtype : dtype-like, optional
+        Floating-point precision of the generated field. Supported values are
+        ``numpy.float32`` and ``numpy.float64``. Default is ``numpy.float64``.
 
     Returns
     -------
@@ -105,6 +109,7 @@ def selfaffine_field(
         raise ValueError("Hurst exponent must be in [0, 1]")
     if dim not in (1, 2, 3):
         raise ValueError(f"Dimension must be 1, 2, or 3, got {dim}")
+    dtype = real_dtype(dtype)
 
     if rng is None:
         rng = np.random.default_rng()
@@ -118,11 +123,12 @@ def selfaffine_field(
         print(f"    k_low = {k_low}")
         print(f"    k_high = {k_high}")
         print(f"    plateau = {plateau}")
+        print(f"    dtype = {dtype.name}")
 
     if noise:
-        return _selfaffine_filtered_noise(dim, N, Hurst, k_low, k_high, plateau, rng)
+        return _selfaffine_filtered_noise(dim, N, Hurst, k_low, k_high, plateau, rng, dtype)
     else:
-        return _selfaffine_ideal_spectrum(dim, N, Hurst, k_low, k_high, plateau, rng)
+        return _selfaffine_ideal_spectrum(dim, N, Hurst, k_low, k_high, plateau, rng, dtype)
 
 
 def _selfaffine_filtered_noise(
@@ -133,13 +139,14 @@ def _selfaffine_filtered_noise(
     k_high: float,
     plateau: bool,
     rng: np.random.Generator,
+    dtype: np.dtype,
 ) -> np.ndarray:
     """Generate self-affine field by filtering white noise."""
     shape = (N,) * dim
-    amplitude = selfaffine_filter(dim, N, Hurst, k_low, k_high, plateau)
-    spectrum = np.fft.rfftn(rng.standard_normal(shape))
+    amplitude = selfaffine_filter(dim, N, Hurst, k_low, k_high, plateau, dtype=dtype)
+    spectrum = rfftn(rng.standard_normal(shape, dtype=dtype.type))
     spectrum *= amplitude
-    return np.fft.irfftn(spectrum, s=shape)
+    return irfftn(spectrum, shape, dtype)
 
 
 def _selfaffine_ideal_spectrum(
@@ -150,13 +157,14 @@ def _selfaffine_ideal_spectrum(
     k_high: float,
     plateau: bool,
     rng: np.random.Generator,
+    dtype: np.dtype,
 ) -> np.ndarray:
     """Generate self-affine field with ideal spectrum and random phases."""
     shape = (N,) * dim
-    amplitude = selfaffine_filter(dim, N, Hurst, k_low, k_high, plateau)
+    amplitude = selfaffine_filter(dim, N, Hurst, k_low, k_high, plateau, dtype=dtype)
 
     # ``rfftn`` retains the complex phase of every independent Fourier mode.
-    spectrum = np.fft.rfftn(rng.standard_normal(shape))
+    spectrum = rfftn(rng.standard_normal(shape, dtype=dtype.type))
     spectrum /= np.abs(spectrum) + 1e-30
     spectrum *= amplitude
-    return np.fft.irfftn(spectrum, s=shape)
+    return irfftn(spectrum, shape, dtype)
